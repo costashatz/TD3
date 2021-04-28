@@ -8,7 +8,7 @@ import utils
 import TD3
 import OurDDPG
 import DDPG
-from models import ActorTD3, ActorDDPG, CriticDDPG, Critic, DualCritic
+from models import ActorTD3, ActorDDPG, CriticDDPG, Critic, DualCritic, CriticWithOptimizer, DualCriticWithOptimizer, GPCritic
 
 
 # Runs policy for X episodes and returns average reward
@@ -35,7 +35,6 @@ def eval_policy(policy, env_name, seed, eval_episodes=10):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--policy", default="TD3")                  # Policy name (TD3, DDPG or OurDDPG)
     parser.add_argument("--env", default="HalfCheetah-v2")          # OpenAI gym environment name
@@ -93,15 +92,15 @@ if __name__ == "__main__":
         kwargs["min_action"] = min_action
         kwargs["max_action"] = max_action
         kwargs["actor"] = ActorTD3(state_dim, action_dim, min_action, max_action)
-        kwargs["critic"] = DualCritic(state_dim, action_dim)
+        kwargs["critic"] = DualCriticWithOptimizer(DualCritic(state_dim, action_dim))
         policy = TD3.TD3(**kwargs)
     elif args.policy == "OurDDPG":
         kwargs["actor"] = ActorTD3(state_dim, action_dim, min_action, max_action)
-        kwargs["critic"] = Critic(state_dim, action_dim)
+        kwargs["critic"] = CriticWithOptimizer(Critic(state_dim, action_dim))  # GPCritic(state_dim, action_dim, 256)
         policy = OurDDPG.DDPG(**kwargs)
     elif args.policy == "DDPG":
         kwargs["actor"] = ActorDDPG(state_dim, action_dim, min_action, max_action)
-        kwargs["critic"] = CriticDDPG(state_dim, action_dim)
+        kwargs["critic"] = CriticWithOptimizer(CriticDDPG(state_dim, action_dim), 1e-3, 1e-2)
         policy = DDPG.DDPG(**kwargs)
 
     if args.load_model != "":

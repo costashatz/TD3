@@ -23,18 +23,15 @@ class TD3(object):
             policy_noise=0.2,
             noise_clip=0.5,
             policy_freq=2,
-            lr_actor=3e-4,
-            lr_critic=3e-4,
-            loss_func=F.mse_loss
+            lr_actor=3e-4
     ):
 
-        self.actor = copy.deepcopy(actor).to(device)  # Actor(state_dim, action_dim, max_action).to(device)
+        self.actor = copy.deepcopy(actor).to(device)
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
 
-        self.critic = copy.deepcopy(critic).to(device)  # Critic(state_dim, action_dim).to(device)
+        self.critic = copy.deepcopy(critic).to(device)
         self.critic_target = copy.deepcopy(self.critic)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
 
         self.min_action = torch.FloatTensor(min_action).to(device)
         self.max_action = torch.FloatTensor(max_action).to(device)
@@ -43,7 +40,6 @@ class TD3(object):
         self.policy_noise = torch.FloatTensor(policy_noise).to(device)
         self.noise_clip = torch.FloatTensor(noise_clip).to(device)
         self.policy_freq = policy_freq
-        self.loss_func = loss_func
 
         self.total_it = 0
 
@@ -68,21 +64,13 @@ class TD3(object):
             target_Q = torch.min(target_Q1, target_Q2)
             target_Q = reward + not_done * self.discount * target_Q
 
-        # Get current Q estimates
-        current_Q1, current_Q2 = self.critic(state, action)
-
-        # Compute critic loss
-        critic_loss = self.loss_func(current_Q1, target_Q) + self.loss_func(current_Q2, target_Q)
-
-        # Optimize the critic
-        self.critic_optimizer.zero_grad()
-        critic_loss.backward()
-        self.critic_optimizer.step()
+        # Update Critic
+        self.critic.update(state, action, target_Q)
 
         # Delayed policy updates
         if self.total_it % self.policy_freq == 0:
 
-            # Compute actor losse
+            # Compute actor loss
             actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
 
             # Optimize the actor
@@ -106,7 +94,7 @@ class TD3(object):
 
     def load(self, filename):
         self.critic.load_state_dict(torch.load(filename + "_critic"))
-        self.critic_optimizer.load_state_dict(torch.load(filename + "_critic_optimizer"))
+        # self.critic_optimizer.load_state_dict(torch.load(filename + "_critic_optimizer"))
         self.critic_target = copy.deepcopy(self.critic)
 
         self.actor.load_state_dict(torch.load(filename + "_actor"))

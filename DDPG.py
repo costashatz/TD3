@@ -13,18 +13,16 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class DDPG(object):
-    def __init__(self, actor, critic, discount=0.99, tau=0.001, lr_actor=1e-4, lr_critic=1e-3, critic_weight_decay=1e-2, loss_func=F.mse_loss):
-        self.actor = copy.deepcopy(actor).to(device)  # Actor(state_dim, action_dim, max_action).to(device)
+    def __init__(self, actor, critic, discount=0.99, tau=0.001, lr_actor=1e-4):
+        self.actor = copy.deepcopy(actor).to(device)
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
 
-        self.critic = copy.deepcopy(critic).to(device)  # Critic(state_dim, action_dim).to(device)
+        self.critic = copy.deepcopy(critic).to(device)
         self.critic_target = copy.deepcopy(self.critic)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr_critic, weight_decay=critic_weight_decay)
 
         self.discount = discount
         self.tau = tau
-        self.loss_func = loss_func
 
     def select_action(self, state):
         state = torch.FloatTensor(state.reshape(1, -1)).to(device)
@@ -38,16 +36,8 @@ class DDPG(object):
         target_Q = self.critic_target(next_state, self.actor_target(next_state))
         target_Q = reward + (not_done * self.discount * target_Q).detach()
 
-        # Get current Q estimate
-        current_Q = self.critic(state, action)
-
-        # Compute critic loss
-        critic_loss = self.loss_func(current_Q, target_Q)
-
-        # Optimize the critic
-        self.critic_optimizer.zero_grad()
-        critic_loss.backward()
-        self.critic_optimizer.step()
+        # Update Critic
+        self.critic.update(state, action, target_Q)
 
         # Compute actor loss
         actor_loss = -self.critic(state, self.actor(state)).mean()

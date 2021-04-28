@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import gpytorch
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class ActorTD3(nn.Module):
     def __init__(self, state_dim, action_dim, min_action, max_action):
@@ -99,3 +101,135 @@ class DualCritic(nn.Module):
         q1 = F.relu(self.l2(q1))
         q1 = self.l3(q1)
         return q1
+
+
+class ApproximateGPModel(gpytorch.models.ApproximateGP):
+    def __init__(self, inducing_points):
+        variational_distribution = gpytorch.variational.CholeskyVariationalDistribution(inducing_points.size(0))
+        variational_strategy = gpytorch.variational.VariationalStrategy(
+            self, inducing_points, variational_distribution, learn_inducing_locations=True
+        )
+        super().__init__(variational_strategy)
+        self.mean_module = gpytorch.means.ConstantMean()
+        # self.mean_module.initialize(constant=-10.)
+        # self.mean_module.constant.requires_grad = False
+        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel())
+
+    def forward(self, x):
+        mean_x = self.mean_module(x)
+        covar_x = self.covar_module(x)
+        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
+
+class GPCritic:
+    def __init__(self, state_dim, action_dim, batch_size, N_inducing=200):
+        self.model = ApproximateGPModel(torch.randn((N_inducing, state_dim+action_dim)))
+        self.likelihood = gpytorch.likelihoods.GaussianLikelihood()
+        self.objective_function = gpytorch.mlls.VariationalELBO(self.likelihood, self.model, num_data=batch_size)
+        # self.objective_function = gpytorch.mlls.PredictiveLogLikelihood(self.likelihood, self.model, num_data=batch_size)
+
+        self.optimizer = torch.optim.Adam(list(self.model.parameters()) + list(self.likelihood.parameters()), lr=1e-3)
+        self.gp_error = 0.
+
+    def forward(self, state, action):
+        # self.model.eval()
+        # self.likelihood.eval()
+        sa = torch.cat([state, action], 1)
+
+        output = self.model(sa)
+
+        return output.mean.view(output.mean.shape[0], 1)
+
+    def __call__(self, state, action):
+        return self.forward(state, action)
+
+    def update(self, state, action, targets):
+        # self.model.train()
+        # self.likelihood.train()
+        sa = torch.cat([state, action], 1)
+        output = self.model(sa)
+        self.optimizer.zero_grad()
+        loss = -self.objective_function(output, targets).mean()
+        loss.backward()
+        self.optimizer.step()
+
+        # print(output.mean.mean().item(), targets.mean().item())
+        # print(loss.item())
+
+    def parameters(self):
+        return (list(self.model.parameters()) + list(self.likelihood.parameters()))
+
+    def to(self, dev):
+        self.model.to(dev)
+        self.likelihood.to(dev)
+
+        return self
+
+
+class CriticWithOptimizer:
+    def __init__(self, model, lr_critic=3e-4, critic_weight_decay=-1):
+        self.model = model
+        if critic_weight_decay > 0:
+            self.optim = torch.optim.Adam(self.model.parameters(), lr=lr_critic, weight_decay=critic_weight_decay)
+        else:
+            self.optim = torch.optim.Adam(self.model.parameters(), lr=lr_critic)
+
+    def __call__(self, state, action):
+        return self.model(state, action)
+
+    def update(self, state, action, target_Q):
+        # Get current Q estimate
+        current_Q = self.model(state, action)
+
+        # Compute critic loss
+        critic_loss = F.mse_loss(current_Q, target_Q)
+
+        # Optimize the critic
+        self.optim.zero_grad()
+        critic_loss.backward()
+        self.optim.step()
+
+        # print(current_Q.mean().item(), target_Q.mean().item())
+
+    def parameters(self):
+        return self.model.parameters()
+
+    def to(self, dev):
+        self.model.to(dev)
+
+        return self
+
+
+class DualCriticWithOptimizer:
+    def __init__(self, model, lr_critic=3e-4, critic_weight_decay=-1):
+        self.model = model
+        if critic_weight_decay > 0:
+            self.optim = torch.optim.Adam(self.model.parameters(), lr=lr_critic, weight_decay=critic_weight_decay)
+        else:
+            self.optim = torch.optim.Adam(self.model.parameters(), lr=lr_critic)
+
+    def __call__(self, state, action):
+        return self.model(state, action)
+
+    def Q1(self, state, action):
+        return self.model.Q1(state, action)
+
+    def update(self, state, action, target_Q):
+        # Get current Q estimates
+        current_Q1, current_Q2 = self.model(state, action)
+
+        # Compute critic loss
+        critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(current_Q2, target_Q)
+
+        # Optimize the critic
+        self.optim.zero_grad()
+        critic_loss.backward()
+        self.optim.step()
+
+    def parameters(self):
+        return self.model.parameters()
+
+    def to(self, dev):
+        self.model.to(dev)
+
+        return self
