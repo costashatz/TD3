@@ -79,8 +79,8 @@ if __name__ == "__main__":
     max_action = env.action_space.high
 
     kwargs = {
-        "discount": args.discount,
-        "tau": args.tau,
+        "discount": float(args.discount),
+        "tau": float(args.tau),
     }
 
     # Initialize policy
