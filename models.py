@@ -6,12 +6,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class ActorTD3(nn.Module):
-    def __init__(self, state_dim, action_dim, min_action, max_action):
+    def __init__(self, state_dim, action_dim, min_action, max_action, hidden_size=256):
         super(ActorTD3, self).__init__()
 
-        self.l1 = nn.Linear(state_dim, 256)
-        self.l2 = nn.Linear(256, 256)
-        self.l3 = nn.Linear(256, action_dim)
+        self.l1 = nn.Linear(state_dim, hidden_size)
+        self.l2 = nn.Linear(hidden_size, hidden_size)
+        self.l3 = nn.Linear(hidden_size, action_dim)
 
         self.max_action = torch.FloatTensor(max_action).to(device)
         self.min_action = torch.FloatTensor(min_action).to(device)
@@ -23,12 +23,12 @@ class ActorTD3(nn.Module):
 
 
 class ActorDDPG(nn.Module):
-    def __init__(self, state_dim, action_dim, min_action, max_action):
+    def __init__(self, state_dim, action_dim, min_action, max_action, hidden_sizes=[400, 300]):
         super(ActorDDPG, self).__init__()
 
-        self.l1 = nn.Linear(state_dim, 400)
-        self.l2 = nn.Linear(400, 300)
-        self.l3 = nn.Linear(300, action_dim)
+        self.l1 = nn.Linear(state_dim, hidden_sizes[0])
+        self.l2 = nn.Linear(hidden_sizes[0], hidden_sizes[1])
+        self.l3 = nn.Linear(hidden_sizes[1], action_dim)
 
         self.max_action = torch.FloatTensor(max_action).to(device)
         self.min_action = torch.FloatTensor(min_action).to(device)
@@ -40,12 +40,12 @@ class ActorDDPG(nn.Module):
 
 
 class CriticDDPG(nn.Module):
-    def __init__(self, state_dim, action_dim):
+    def __init__(self, state_dim, action_dim, hidden_sizes=[400, 300]):
         super(CriticDDPG, self).__init__()
 
-        self.l1 = nn.Linear(state_dim, 400)
-        self.l2 = nn.Linear(400 + action_dim, 300)
-        self.l3 = nn.Linear(300, 1)
+        self.l1 = nn.Linear(state_dim, hidden_sizes[0])
+        self.l2 = nn.Linear(hidden_sizes[0] + action_dim, hidden_sizes[1])
+        self.l3 = nn.Linear(hidden_sizes[1], 1)
 
     def forward(self, state, action):
         q = F.relu(self.l1(state))
@@ -54,12 +54,12 @@ class CriticDDPG(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim):
+    def __init__(self, state_dim, action_dim, hidden_size=256):
         super(Critic, self).__init__()
 
-        self.l1 = nn.Linear(state_dim + action_dim, 256)
-        self.l2 = nn.Linear(256, 256)
-        self.l3 = nn.Linear(256, 1)
+        self.l1 = nn.Linear(state_dim + action_dim, hidden_size)
+        self.l2 = nn.Linear(hidden_size, hidden_size)
+        self.l3 = nn.Linear(hidden_size, 1)
 
     def forward(self, state, action):
         q = F.relu(self.l1(torch.cat([state, action], 1)))
@@ -68,18 +68,18 @@ class Critic(nn.Module):
 
 
 class DualCritic(nn.Module):
-    def __init__(self, state_dim, action_dim):
+    def __init__(self, state_dim, action_dim, hidden_size=256):
         super(DualCritic, self).__init__()
 
         # Q1 architecture
-        self.l1 = nn.Linear(state_dim + action_dim, 256)
-        self.l2 = nn.Linear(256, 256)
-        self.l3 = nn.Linear(256, 1)
+        self.l1 = nn.Linear(state_dim + action_dim, hidden_size)
+        self.l2 = nn.Linear(hidden_size, hidden_size)
+        self.l3 = nn.Linear(hidden_size, 1)
 
         # Q2 architecture
-        self.l4 = nn.Linear(state_dim + action_dim, 256)
-        self.l5 = nn.Linear(256, 256)
-        self.l6 = nn.Linear(256, 1)
+        self.l4 = nn.Linear(state_dim + action_dim, hidden_size)
+        self.l5 = nn.Linear(hidden_size, hidden_size)
+        self.l6 = nn.Linear(hidden_size, 1)
 
     def forward(self, state, action):
         sa = torch.cat([state, action], 1)
