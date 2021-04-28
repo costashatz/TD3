@@ -8,7 +8,7 @@ import utils
 import TD3
 import OurDDPG
 import DDPG
-from models import ActorTD3, ActorDDPG, CriticDDPG, Critic, DualCritic, CriticWithOptimizer, DualCriticWithOptimizer, GPCritic
+from models import ActorTD3, ActorDDPG, CriticDDPG, Critic, DualCritic, CriticWithOptimizer, DualCriticWithOptimizer
 
 
 # Runs policy for X episodes and returns average reward
@@ -96,7 +96,7 @@ if __name__ == "__main__":
         policy = TD3.TD3(**kwargs)
     elif args.policy == "OurDDPG":
         kwargs["actor"] = ActorTD3(state_dim, action_dim, min_action, max_action)
-        kwargs["critic"] = CriticWithOptimizer(Critic(state_dim, action_dim))  # GPCritic(state_dim, action_dim, 256)
+        kwargs["critic"] = CriticWithOptimizer(Critic(state_dim, action_dim))
         policy = OurDDPG.DDPG(**kwargs)
     elif args.policy == "DDPG":
         kwargs["actor"] = ActorDDPG(state_dim, action_dim, min_action, max_action)
