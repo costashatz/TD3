@@ -86,8 +86,8 @@ if __name__ == "__main__":
     # Initialize policy
     if args.policy == "TD3":
         # Target policy smoothing is scaled wrt the action scale
-        kwargs["policy_noise"] = args.policy_noise * (max_action - min_action) / 2
-        kwargs["noise_clip"] = args.noise_clip * (max_action - min_action) / 2
+        kwargs["policy_noise"] = float(args.policy_noise) * (max_action - min_action) / 2
+        kwargs["noise_clip"] = float(args.noise_clip) * (max_action - min_action) / 2
         kwargs["policy_freq"] = args.policy_freq
         kwargs["min_action"] = min_action
         kwargs["max_action"] = max_action
@@ -126,7 +126,7 @@ if __name__ == "__main__":
         else:
             action = (
                 policy.select_action(np.array(state))
-                + np.random.normal(0, (max_action - min_action) * args.expl_noise / 2, size=action_dim)
+                + np.random.normal(0, (max_action - min_action) * float(args.expl_noise) / 2., size=action_dim)
             ).clip(min_action, max_action)
 
         # Perform action
